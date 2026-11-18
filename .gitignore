@@ -3,9 +3,11 @@
 .venv
 .env
 
+data/
+logs/
+
 *.png
 *.csv
 *.html
-*.parquet
 
 __pycache__
