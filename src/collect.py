@@ -14,7 +14,6 @@ SAVE_EVERY = 60 * 60
 
 logger = logging.getLogger(__name__)
 
-
 def setup_logging():
     """Log to daily file in logs/ and to the terminal"""
     os.makedirs("logs", exist_ok=True)
