@@ -158,9 +158,10 @@ What the outliers turned out to be:
 - **Steep descents (< −20 m/s) at touchdown are rounding noise:** `step_s` = 1 s and altitude steps of exactly 30.48 m (100 ft) or 38.1 m (125 ft). Altitude is broadcast in 25 ft steps, so rates over very short time steps are unreliable. These rows are real and are kept.
 - **The strongest "climb" was not a go-around:** `392ae6_6` (AFR369Y) starts on the ground at **Orly** and lands at CDG (a short repositioning flight). It's a valid arrival that starts on the ground inside the box.
 - Ratio artefact at touchdown: braking makes the current reported speed much lower than the average over the last step, so single-point ratios are high there. Hence the **median per flight**, ignoring points with a reported speed below ~50 km/h.
+- Low-ratio flight 392af5_2: median ratio 0.48 with time_position, 0.475 with snapshot_time, so the timestamps aren't the cause. The positions are off. Such flights can't be repaired are dropped.
+- High-ratio flight 347308_1: median ratio 2.60 with time_position, 2.62 with snapshot_time. Same conclusion as 392af5_2, the positions are wrong and the timestamps aren't the cause.
 
-Planned rule: drop flights whose **median ratio implied / reported speed** is above ~**1.3**.
-To do: histogram of the per-flight median ratio → confirm the threshold → count the flights removed → `remove_implausible_flights`.
+Rule: drop flights whose median implied / reported speed ratio is outside [min, max]
 
 ---
 
