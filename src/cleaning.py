@@ -1,8 +1,10 @@
 import glob
 
 import pandas as pd
+import numpy as np
 
 from src import geo
+from src import diagnostics
 
 
 def load_raw(name):
@@ -100,3 +102,68 @@ def keep_arrivals(
  
 	arrivals = df[df["flight_id"].isin(arrival_endpoints["flight_id"])]
 	return arrivals.reset_index(drop=True)
+
+def remove_implausible_flights(df, min_ratio=0.8, max_ratio=1.25):
+	"""Drop flights whose position don't match their reported sped.
+	
+	For each flight, the implied speed (from consecutive positions) is
+	compared with the speed of the aircraft reports. A flight is kept
+	if it's median ratio / reported is within [min_ratio, max_ratio].
+	
+	Flights far outside that range have systematically wrong positions.
+	Their timestamps are not the cause, meaning they can't be repaired,
+	thus being dropped.
+	
+	Flights with no valid ratio at all are also dropped since their
+	position can't be checked.
+	
+	Args:
+		df: Flights DataFrame with flight_id, latitude, longitude,
+			velocity and time_position, sorted by the time within each flight.
+		min_ratio: Lowest acceptable median ratio.
+		max_ratio: Highest acceptable median ratio.
+		
+	Returns a new DataFrame with only plausible flights and fresh index.
+	The input isn't modified."""
+	ratios = diagnostics.speed_ratio(df)
+	medians = ratios.groupby(df["flight_id"]).median()
+	is_plausible = medians.between(min_ratio, max_ratio)
+	plausible_ids = medians[is_plausible].index
+	return df[df["flight_id"].isin(plausible_ids)].reset_index(drop=True)
+
+def fix_altitude_spikes(df, max_vertical_ms=50, min_jump_m=300):
+	"""Clear implausible altitude jumps by setting geo_altitude to NaN.
+	
+	For each point, the altitude change and time step since the
+	previous point of the same flight give a vertical speed. A
+	point is a spike if both its vertical speed exceeds
+	`max_vertical_ms` and its altitude change exceeds
+	`min_jump_m` (either direction). Its geo altitude is set
+	to NaN. The rest of the row is kept.
+
+	Requiring both conditions protects real data: altitude rounding
+	at touchdown gives high rates but small changes, and long gaps
+	give large changes at normal rates. The point right after the
+	spike may also be cleared, since it's jump back down looks
+	like a spike too.
+	
+	Args:
+		df: Flights DataFrame with flight_id, geo_altitude,
+			time_position sorted by time within each flight.
+		max_vertical_ms: Vertical speed limit, in metres per
+			second.
+		min_jump_m: Minimum altitude change, in metres,
+			to count as a spike.
+		
+	Returns a new DataFrame with the same rows; spike altitude
+	are NaN. The input isn't modified.
+	"""
+	out = df.copy()
+
+	grouped = out.groupby("flight_id")
+	alt_change_m = grouped["geo_altitude"].diff()
+	time_step_s = grouped["time_position"].diff()
+	vspeed_ms = alt_change_m / time_step_s
+	is_spike = (vspeed_ms.abs() > max_vertical_ms) & (alt_change_m.abs() > min_jump_m)
+	out.loc[is_spike, "geo_altitude"] = np.nan
+	return out
